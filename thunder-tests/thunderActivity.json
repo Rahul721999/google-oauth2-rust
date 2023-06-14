@@ -8,9 +8,55 @@
     "method": "GET",
     "sortNum": 0,
     "created": "2023-06-13T08:42:21.755Z",
-    "modified": "2023-06-13T08:42:21.755Z",
+    "modified": "2023-06-14T15:03:09.106Z",
     "headers": [],
     "params": [],
+    "tests": []
+  },
+  {
+    "_id": "8ff95093-0c82-4fda-9f30-8cef9e4ac93b",
+    "colId": "history",
+    "containerId": "",
+    "name": "localhost:8080/Auth Copy Copy",
+    "url": "http://localhost:8080/callback?state=qRRWNDaDWhMK_LY1i1v4tw&code=4%2F0AbUR2VPJ_HVZVi3SP8PxBAJjKEjquvWRNLT6aJhXTS7qOy06-dQgoyoSZmS8GsK2eHCf1g&scope=https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fcalendar+openid&pkce_verifier=aZeJsOZegpR551YCW-73lWkIUVhca1HGqt6vRFSpWV8",
+    "method": "GET",
+    "sortNum": 0,
+    "created": "2023-06-13T08:42:21.755Z",
+    "modified": "2023-06-14T08:40:48.454Z",
+    "headers": [],
+    "params": [
+      {
+        "name": "state",
+        "value": "qRRWNDaDWhMK_LY1i1v4tw",
+        "isPath": false
+      },
+      {
+        "name": "code",
+        "value": "4%2F0AbUR2VPJ_HVZVi3SP8PxBAJjKEjquvWRNLT6aJhXTS7qOy06-dQgoyoSZmS8GsK2eHCf1g",
+        "isPath": false
+      },
+      {
+        "name": "scope",
+        "value": "https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fcalendar+openid",
+        "isPath": false
+      },
+      {
+        "name": "pkce_verifier",
+        "value": "aZeJsOZegpR551YCW-73lWkIUVhca1HGqt6vRFSpWV8",
+        "isPath": false
+      }
+    ],
+    "body": {
+      "type": "formencoded",
+      "raw": "",
+      "form": [
+        {
+          "name": "pkce_verifier",
+          "value": "vSzeEdkluJcI0S9tWHcXDqvXgOUcZLzWpmLbBdSp3hw",
+          "isDisabled": true
+        }
+      ]
+    },
     "tests": []
   }
 ]

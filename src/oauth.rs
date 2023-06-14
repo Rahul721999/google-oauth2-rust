@@ -1,79 +1,80 @@
+#![allow(unused)]
 use actix_web::{HttpResponse, web};
 use dotenv::dotenv;
 use oauth2::{
-    basic::BasicClient, AuthUrl, ClientId, ClientSecret, CsrfToken, PkceCodeChallenge, RedirectUrl,
-    Scope, TokenUrl, AuthorizationCode, reqwest::async_http_client,
+    CsrfToken, PkceCodeChallenge, RedirectUrl,
+    Scope, AuthorizationCode, reqwest::{async_http_client, http_client}, StandardRevocableToken, TokenResponse, PkceCodeVerifier, RevocationUrl,
 };
-use std::env;
+use url::Url;
+use std::{net::TcpListener, io::{Write, BufReader, BufRead}, collections::HashMap, sync::{Arc, Mutex}};
+use serde_json::json;
+use crate::get_client::get;
+use crate::PkceVerifier;
 
-pub async fn google_auth() -> Result<HttpResponse, actix_web::Error> {
+
+/// 
+/// API to get the Authentication Url from google
+/// 
+pub async fn google_auth_url( data: web::Data<Arc<Mutex<PkceVerifier>>>) -> Result<HttpResponse, actix_web::Error> {
     dotenv().ok();
-    // get the clientID from env
-    let google_client_id = ClientId::new(
-        env::var("GOOGLE_CLIENT_ID").expect("Missing the GOOGLE_CLIENT_ID environment variable."),
-    );
-
-    // get the google secret
-    let google_client_secret = ClientSecret::new(
-        env::var("GOOGLE_CLIENT_SECRET")
-            .expect("Missing the GOOGLE_CLIENT_SECRET environment variable."),
-    );
-
-    let auth_url = AuthUrl::new("https://accounts.google.com/o/oauth2/v2/auth".to_string())
-        .expect("Invalid authorization endpoint URL");
-    let token_url = TokenUrl::new("https://www.googleapis.com/oauth2/v3/token".to_string())
-        .expect("Invalid token endpoint URL");
-
-    // setup the google oAuth2 process
-    let client = BasicClient::new(
-        google_client_id,
-        Some(google_client_secret),
-        auth_url,
-        Some(token_url),
+    let mut lock = data.lock().expect("failed to get the Mutex value");
+    // get the clientID 
+    let client = get().set_redirect_uri(
+        RedirectUrl::new("http://localhost:8080/callback".to_string()).expect("failed to set redirect url")
     )
-    .set_redirect_uri(
-        RedirectUrl::new("http://localhost:8080".to_string()).expect("failed to set redirect url"),
+    .set_revocation_uri(
+        RevocationUrl::new("https://oauth2.googleapis.com/revoke".to_string())
+            .expect("Invalid revocation endpoint URL"),
     );
 
     // Generate a PKCE challenge.
     let (pkce_challenge, pkce_verifier) = PkceCodeChallenge::new_random_sha256();
-
+    lock.value = pkce_verifier.secret().to_string();
+    println!("pkce_verifier:{}",lock.value);
     // Generate the full authorization URL.
-    let (auth_url, _csrf_token) = client
+    let (auth_url, csrf_token) = client
         .authorize_url(CsrfToken::new_random)
-
         // Set the PKCE code challenge.
+        .add_scope(Scope::new(
+            "https://www.googleapis.com/auth/userinfo.profile".to_string(),
+        ))
+        .add_scope(Scope::new(
+            "https://www.googleapis.com/auth/plus.me".to_string(),
+        ))
         .set_pkce_challenge(pkce_challenge)
         .url();
+    // Create the authorization URL with the PKCE verifier
     println!("{}", auth_url);
 
-    let token_result = client
-    .exchange_code(AuthorizationCode::new("authorization_code".to_string()))
-    // Set the PKCE code verifier.
+    Ok(HttpResponse::Ok().json(json!({
+        "auth_url": auth_url,
+        "pkce_verifier": pkce_verifier.secret()
+    })))
+}
+
+
+///
+///  callback Api get's redirected when Authentication gets successful  
+/// 
+pub async fn auth_callback(query_params: web::Query<HashMap<String, String>>, data: web::Data<Arc<Mutex<PkceVerifier>>>) -> HttpResponse{
+
+    // Extract the authorization code from the query parameters
+    let code = query_params
+        .get("code")
+        .ok_or_else(|| HttpResponse::BadRequest().body("Missing authorization code")).expect("failed to get the code from query param");
+    
+    // get teh PkceVerifier from ARC<Mutex>...
+    let mut lock = data.lock().expect("failed to get the Mutex value");
+    println!("pkce_verifier: {}",lock.value);
+    let pkce_verifier = PkceCodeVerifier::new(lock.value.clone());
+
+    // Generate the client and 
+    let client = get();
+    let token_response = client
+    .set_redirect_uri(RedirectUrl::new("http://localhost:8080/callback".to_owned()).expect("failed to get url"))
+    .exchange_code(AuthorizationCode::new(code.to_owned()))
     .set_pkce_verifier(pkce_verifier)
-    .request_async(async_http_client)
-    .await.expect("failed to get the token");
-    println!("{:#?}",token_result);
-    Ok(HttpResponse::Ok().body("Success"))
-}
-
-
-use serde::Deserialize;
-
-#[derive(Deserialize)]
-pub struct CallbackParams {
-    code: String,
-    state: String,
-}
-
-pub async fn callback_handler(params: web::Query<CallbackParams>) -> HttpResponse {
-    // Extract the authorization code and state from the query parameters
-    let code = &params.code;
-    let state = &params.state;
-
-    // Process the authorization code and state as needed
-    // For example, exchange the authorization code for access token and refresh token
-
-    // Return a response indicating successful authorization
-    HttpResponse::Ok().body(format!("Authorization successful! Code: {}, State: {}", code, state))
+    .request_async(async_http_client).await.expect("failed to get the token");
+    
+    HttpResponse::Ok().body(format!("{}",token_response.access_token().secret()))
 }
