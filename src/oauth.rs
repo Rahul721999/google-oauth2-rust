@@ -21,10 +21,6 @@ pub async fn google_auth_url( data: web::Data<Arc<Mutex<PkceVerifier>>>) -> Resu
     // get the clientID 
     let client = get().set_redirect_uri(
         RedirectUrl::new("http://localhost:8080/callback".to_string()).expect("failed to set redirect url")
-    )
-    .set_revocation_uri(
-        RevocationUrl::new("https://oauth2.googleapis.com/revoke".to_string())
-            .expect("Invalid revocation endpoint URL"),
     );
 
     // Generate a PKCE challenge.
@@ -69,12 +65,27 @@ pub async fn auth_callback(query_params: web::Query<HashMap<String, String>>, da
     let pkce_verifier = PkceCodeVerifier::new(lock.value.clone());
 
     // Generate the client and 
-    let client = get();
-    let token_response = client
+    let client = get().set_revocation_uri(
+        RevocationUrl::new("https://oauth2.googleapis.com/revoke".to_string())
+            .expect("Invalid revocation endpoint URL"),
+    );
+    let token_response = client.clone()
     .set_redirect_uri(RedirectUrl::new("http://localhost:8080/callback".to_owned()).expect("failed to get url"))
     .exchange_code(AuthorizationCode::new(code.to_owned()))
     .set_pkce_verifier(pkce_verifier)
     .request_async(async_http_client).await.expect("failed to get the token");
+
+
+
+    // revoke token..
+    let token_to_revoke: StandardRevocableToken = token_response.access_token().into();
+    println!("{:?}",token_to_revoke);
+
+    let res = client
+    .set_redirect_uri(RedirectUrl::new("https://accounts.google.com/o/oauth2/revoke".to_owned()).expect("failed to get url"))
+    .revoke_token(token_to_revoke)
+    .unwrap()
+    .request_async(async_http_client).await.expect("failed to revoke token");
     
     HttpResponse::Ok().body(format!("{}",token_response.access_token().secret()))
 }
